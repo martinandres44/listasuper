@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Súper Familiar 🛒</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #faf7f2;
+            --surface: #ffffff;
+            --ink: #1a1a18;
+            --ink-muted: #7a7770;
+            --green: #2d6a4f;
+            --green-light: #d8f3dc;
+            --green-mid: #74c69d;
+            --red: #c1121f;
+            --red-light: #ffe8ea;
+            --amber: #e9c46a;
+            --border: #e8e3da;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(45,106,79,0.06) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(233,196,106,0.1) 0%, transparent 50%);
+            pointer-events: none; z-index: 0;
+        }
+
+        .app {
+            position: relative; z-index: 1;
+            width: 100%; max-width: 450px;
+            background: var(--surface);
+            min-height: 100vh;
+            display: flex; flex-direction: column;
+            box-shadow: 0 0 60px rgba(0,0,0,0.08);
+        }
+
+        /* ── NAME OVERLAY ── */
+        #name-overlay {
+            position: fixed; inset: 0;
+            background: rgba(26,26,24,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 100;
+            display: none;
+            place-items: center;
+            padding: 20px;
+        }
+        .name-card {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 32px 24px;
+            width: 100%; max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .name-card-emoji { font-size: 2.5rem; margin-bottom: 12px; }
+        .name-card h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem; font-weight: 900;
+            color: var(--ink); margin-bottom: 6px;
+        }
+        .name-card p { font-size: 0.85rem; color: var(--ink-muted); margin-bottom: 20px; }
+        .name-input-wrap {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 4px 4px 4px 14px;
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+        .name-input-wrap:focus-within { border-color: var(--green-mid); }
+        .name-input-wrap input {
+            flex: 1; border: none; outline: none;
+            background: transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem; color: var(--ink);
+            padding: 8px 0;
+        }
+        .name-input-wrap input::placeholder { color: var(--ink-muted); }
+        .btn-primary {
+            width: 100%;
+            background: var(--green); color: white;
+            border: none; border-radius: 12px;
+            padding: 13px; font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem; font-weight: 600;
+            cursor: pointer; transition: background 0.2s, transform 0.1s;
+        }
+        .btn-primary:hover { background: #235c42; }
+        .btn-primary:active { transform: scale(0.98); }
+
+        /* ── HEADER ── */
+        header {
+            padding: 20px 18px 16px;
+            border-bottom: 1.5px solid var(--border);
+            background: var(--surface);
+            position: sticky; top: 0; z-index: 10;
+        }
+        .header-top {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 4px;
+        }
+        .header-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem; font-weight: 900;
+            color: var(--ink);
+        }
+        .header-title span { color: var(--green); }
+        .status-dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            background: #94a3b8;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .status-dot.online { background: var(--green-mid); box-shadow: 0 0 0 3px rgba(116,198,157,0.3); }
+        .header-sub {
+            font-size: 0.78rem; color: var(--ink-muted);
+            display: flex; align-items: center; gap: 10px;
+        }
+        #me-label {
+            cursor: pointer;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        #me-label:hover { border-color: var(--green-mid); color: var(--green); }
+
+        /* ── INPUT BAR ── */
+        .input-bar {
+            padding: 12px 16px;
+            background: var(--surface);
+            border-bottom: 1.5px solid var(--border);
+        }
+        .input-card {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 5px 5px 5px 16px;
+            display: flex; align-items: center; gap: 8px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-card:focus-within {
+            border-color: var(--green-mid);
+            box-shadow: 0 4px 20px rgba(45,106,79,0.12);
+        }
+        .input-card input {
+            flex: 1; border: none; outline: none;
+            background: transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.97rem; color: var(--ink);
+            padding: 7px 0;
+        }
+        .input-card input::placeholder { color: var(--ink-muted); }
+        .add-btn {
+            background: var(--green); color: white;
+            border: none; border-radius: 11px;
+            width: 38px; height: 38px;
+            font-size: 1.4rem; font-weight: 300;
+            cursor: pointer; flex-shrink: 0;
+            transition: background 0.2s, transform 0.1s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .add-btn:hover { background: #235c42; }
+        .add-btn:active { transform: scale(0.92); }
+
+        /* ── FILTER TABS ── */
+        .filter-bar {
+            display: flex; gap: 6px;
+            padding: 10px 16px;
+            border-bottom: 1.5px solid var(--border);
+            overflow-x: auto; scrollbar-width: none;
+        }
+        .filter-bar::-webkit-scrollbar { display: none; }
+        .cat-btn {
+            flex-shrink: 0;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 13px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600;
+            color: var(--ink-muted);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .cat-btn.active { background: var(--green); border-color: var(--green); color: white; }
+        .cat-btn:hover:not(.active) { border-color: var(--green-mid); color: var(--ink); }
+
+        /* ── LIST ── */
+        #list { flex: 1; list-style: none; padding: 8px 0; }
+
+        li {
+            display: flex; align-items: center;
+            padding: 9px 16px;
+            border-bottom: 1px solid #f4f1ec;
+            gap: 12px;
+            transition: background 0.15s;
+            animation: slideIn 0.22s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        li:hover { background: #fdfcfa; }
+        li.done { opacity: 0.5; }
+        li.done .item-name { text-decoration: line-through; color: var(--ink-muted); }
+
+        .check-box {
+            width: 22px; height: 22px;
+            border-radius: 7px;
+            border: 2px solid var(--border);
+            flex-shrink: 0; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .check-box:hover { border-color: var(--green-mid); }
+        li.done .check-box {
+            background: var(--green); border-color: var(--green);
+        }
+        .check-box::after {
+            content: '';
+            width: 5px; height: 9px;
+            border-right: 2.5px solid white;
+            border-bottom: 2.5px solid white;
+            transform: rotate(45deg) translateY(-1px);
+            display: none;
+        }
+        li.done .check-box::after { display: block; }
+
+        .item-info { flex: 1; cursor: pointer; min-width: 0; }
+        .item-name {
+            font-size: 0.96rem; font-weight: 500;
+            color: var(--ink);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .avatar {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: var(--green-light);
+            color: var(--green);
+            font-size: 0.72rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            letter-spacing: 0;
+        }
+        li.done .avatar { opacity: 0.5; }
+
+        .del-btn {
+            background: none; border: none;
+            color: #d4cfc8; cursor: pointer;
+            font-size: 1.2rem; padding: 4px 6px;
+            border-radius: 6px;
+            transition: color 0.2s, background 0.2s;
+            opacity: 0;
+        }
+        li:hover .del-btn { opacity: 1; }
+        .del-btn:hover { color: var(--red); background: var(--red-light); }
+
+        /* ── EMPTY STATE ── */
+        .empty {
+            padding: 50px 20px;
+            text-align: center; color: var(--ink-muted);
+        }
+        .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+        .empty h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.2rem; color: var(--ink); margin-bottom: 6px;
+        }
+        .empty p { font-size: 0.85rem; }
+
+        /* ── FOOTER ── */
+        .footer {
+            padding: 14px 18px;
+            border-top: 1.5px dashed var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .footer-stat { font-size: 0.8rem; color: var(--ink-muted); }
+        .footer-stat strong { color: var(--ink); }
+        .btn-clear {
+            background: none;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 6px 14px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600;
+            color: var(--ink-muted); cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-clear:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+    </style>
+</head>
+<body>
+
+<!-- Name overlay -->
+<div id="name-overlay" style="display:grid">
+    <div class="name-card">
+        <div class="name-card-emoji">🛒</div>
+        <h3>¿Quién sos?</h3>
+        <p>Así los demás saben quién agregó cada cosa.</p>
+        <div class="name-input-wrap">
+            <input type="text" id="user-name-input" placeholder="Tu nombre..." autocomplete="off">
+        </div>
+        <button class="btn-primary" id="save-name">Empezar</button>
+    </div>
+</div>
+
+<div class="app">
+    <header>
+        <div class="header-top">
+            <div class="header-title">Súper <span>Familiar</span></div>
+            <div class="status-dot" id="dot"></div>
+        </div>
+        <div class="header-sub">
+            <span id="count-display">0 productos</span>
+            <span>·</span>
+            <span id="me-label">cargando...</span>
+        </div>
+    </header>
+
+    <div class="input-bar">
+        <div class="input-card">
+            <input type="text" id="item-in" placeholder="Agregar producto..." autocomplete="off">
+            <button class="add-btn" id="add-btn">+</button>
+        </div>
+    </div>
+
+    <div class="filter-bar" id="filter-bar">
+        <button class="cat-btn active" data-f="todos">Todos</button>
+        <button class="cat-btn" data-f="pendientes">Pendientes</button>
+        <button class="cat-btn" data-f="listos">Listos ✓</button>
+    </div>
+
+    <ul id="list"></ul>
+
+    <div class="footer">
+        <div class="footer-stat">
+            <strong id="pct-display">0%</strong> completado
+        </div>
+        <button class="btn-clear" id="clear">Limpiar comprados</button>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyANtvrq8rjzMZBS6fE49p4yLOfkD8J9Qpc",
+        authDomain: "super-familiar.firebaseapp.com",
+        projectId: "super-familiar",
+        storageBucket: "super-familiar.firebasestorage.app",
+        messagingSenderId: "152383808837",
+        appId: "1:152383808837:web:28ec06dd544e9ff1220a2c",
+        databaseURL: "https://super-familiar-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref('lista_super');
+
+    let myName = localStorage.getItem('super_user_v3');
+    let filter = 'todos';
+    let allItems = {};
+
+    const overlay   = document.getElementById('name-overlay');
+    const meLabel   = document.getElementById('me-label');
+    const listEl    = document.getElementById('list');
+    const dot       = document.getElementById('dot');
+    const countEl   = document.getElementById('count-display');
+    const pctEl     = document.getElementById('pct-display');
+
+    // ── NAME ──
+    if (!myName) {
+        overlay.style.display = 'grid';
+    } else {
+        showMe();
+    }
+
+    document.getElementById('save-name').onclick = () => {
+        const n = document.getElementById('user-name-input').value.trim();
+        if (n) {
+            localStorage.setItem('super_user_v3', n);
+            myName = n;
+            overlay.style.display = 'none';
+            showMe();
+        }
+    };
+    document.getElementById('user-name-input').onkeydown = e => {
+        if (e.key === 'Enter') document.getElementById('save-name').click();
+    };
+
+    function showMe() {
+        meLabel.innerText = '👤 ' + myName;
+    }
+    meLabel.onclick = () => {
+        localStorage.removeItem('super_user_v3');
+        location.reload();
+    };
+
+    // ── FIREBASE ──
+    dbRef.on('value', snap => {
+        dot.classList.add('online');
+        allItems = snap.val() || {};
+        renderList();
+    });
+
+    // ── RENDER ──
+    function renderList() {
+        const keys = Object.keys(allItems);
+        const filtered = keys.filter(id => {
+            if (filter === 'pendientes') return !allItems[id].done;
+            if (filter === 'listos')     return  allItems[id].done;
+            return true;
+        });
+
+        listEl.innerHTML = '';
+
+        if (filtered.length === 0) {
+            const div = document.createElement('div');
+            div.className = 'empty';
+            div.innerHTML = filter === 'listos'
+                ? `<div class="empty-icon">🎉</div><h3>¡Nada comprado aún!</h3><p>Tocá los items para marcarlos.</p>`
+                : `<div class="empty-icon">🥬</div><h3>Lista vacía</h3><p>Agregá el primer producto arriba.</p>`;
+            listEl.appendChild(div);
+        } else {
+            filtered.forEach(id => {
+                const item = allItems[id];
+                const li = document.createElement('li');
+                if (item.done) li.classList.add('done');
+                const initials = (item.by || '?').trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                const avatarColors = ['#d8f3dc|#2d6a4f','#fde8cc|#c07020','#e0e7ff|#4338ca','#fce7f3|#be185d','#f0fdf4|#16a34a','#fef9c3|#a16207'];
+                const aci = (item.by||'').charCodeAt(0) % avatarColors.length;
+                const [abg, afg] = avatarColors[aci].split('|');
+                li.innerHTML = `
+                    <div class="check-box" onclick="toggle('${id}', ${item.done})"></div>
+                    <div class="item-info" onclick="toggle('${id}', ${item.done})">
+                        <div class="item-name">${escHtml(item.name)}</div>
+                    </div>
+                    <div class="avatar" style="background:${abg};color:${afg}" title="${escHtml(item.by||'Anon')}">${initials}</div>
+                    <button class="del-btn" onclick="del('${id}')">×</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+
+        // Counters
+        const total   = keys.length;
+        const checked = keys.filter(id => allItems[id].done).length;
+        const pct     = total ? Math.round(checked / total * 100) : 0;
+        countEl.innerText = total + (total === 1 ? ' producto' : ' productos');
+        pctEl.innerText   = pct + '%';
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── ACTIONS ──
+    function add() {
+        const input = document.getElementById('item-in');
+        const val = input.value.trim();
+        if (!val) return;
+        dbRef.push({ name: val, done: false, by: myName || 'Anon' });
+        input.value = '';
+        input.focus();
+    }
+
+    window.toggle = (id, s) => dbRef.child(id).update({ done: !s });
+    window.del    = (id)    => dbRef.child(id).remove();
+
+    document.getElementById('add-btn').onclick = add;
+    document.getElementById('item-in').onkeydown = e => { if (e.key === 'Enter') add(); };
+
+    document.getElementById('clear').onclick = () => {
+        Object.keys(allItems).forEach(id => {
+            if (allItems[id].done) dbRef.child(id).remove();
+        });
+    };
+
+    // ── FILTER ──
+    document.getElementById('filter-bar').addEventListener('click', e => {
+        const btn = e.target.closest('.cat-btn');
+        if (!btn) return;
+        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        filter = btn.dataset.f;
+        renderList();
+    });
+</script>
+</body>
+</html>
