@@ -266,6 +266,29 @@
         }
         li.done .avatar { opacity: 0.5; }
 
+        .qty-stepper {
+            display: flex; align-items: center; gap: 4px;
+            flex-shrink: 0;
+        }
+        .qty-btn {
+            width: 22px; height: 22px;
+            border-radius: 6px;
+            border: 1.5px solid var(--border);
+            background: var(--bg);
+            color: var(--ink-muted);
+            font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; flex-shrink: 0;
+        }
+        .qty-btn:hover { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
+        .qty-btn:active { transform: scale(0.88); }
+        .qty-num {
+            font-family: 'DM Sans', monospace;
+            font-size: 0.85rem; font-weight: 700;
+            color: var(--ink); min-width: 16px; text-align: center;
+        }
+        li.done .qty-stepper { opacity: 0.5; pointer-events: none; }
         .del-btn {
             background: none; border: none;
             color: #d4cfc8; cursor: pointer;
@@ -464,10 +487,16 @@
                 const initials = (item.by || '?').trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
                 const userDef = USERS[item.by] || { color: '#2d6a4f', bg: '#d8f3dc' };
                 const abg = userDef.bg, afg = userDef.color;
+                const qty = item.qty || 1;
                 li.innerHTML = `
                     <div class="check-box" onclick="toggle('${id}', ${item.done})"></div>
                     <div class="item-info" onclick="toggle('${id}', ${item.done})">
                         <div class="item-name">${escHtml(item.name)}</div>
+                    </div>
+                    <div class="qty-stepper">
+                        <button class="qty-btn" onclick="changeQty('${id}', ${qty}, -1)">−</button>
+                        <span class="qty-num">${qty}</span>
+                        <button class="qty-btn" onclick="changeQty('${id}', ${qty}, 1)">+</button>
                     </div>
                     <div class="avatar" style="background:${abg};color:${afg}" title="${escHtml(item.by||'Anon')}">${initials}</div>
                     <button class="del-btn" onclick="del('${id}')">×</button>
@@ -493,12 +522,16 @@
         const input = document.getElementById('item-in');
         const val = input.value.trim();
         if (!val) return;
-        dbRef.push({ name: val, done: false, by: myName || 'Anon' });
+        dbRef.push({ name: val, done: false, by: myName || 'Anon', qty: 1 });
         input.value = '';
         input.focus();
     }
 
     window.toggle = (id, s) => dbRef.child(id).update({ done: !s });
+    window.changeQty = (id, current, delta) => {
+        const newQty = Math.max(1, current + delta);
+        dbRef.child(id).update({ qty: newQty });
+    };
     window.del    = (id)    => dbRef.child(id).remove();
 
     document.getElementById('add-btn').onclick = add;
