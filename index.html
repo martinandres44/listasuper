@@ -76,34 +76,29 @@
             color: var(--ink); margin-bottom: 6px;
         }
         .name-card p { font-size: 0.85rem; color: var(--ink-muted); margin-bottom: 20px; }
-        .name-input-wrap {
+        .user-options {
+            display: flex; gap: 12px; justify-content: center;
+            margin-top: 4px;
+        }
+        .user-option {
+            flex: 1;
             background: var(--bg);
             border: 2px solid var(--border);
-            border-radius: 12px;
-            padding: 4px 4px 4px 14px;
-            display: flex; align-items: center; gap: 8px;
-            margin-bottom: 12px;
-            transition: border-color 0.2s;
-        }
-        .name-input-wrap:focus-within { border-color: var(--green-mid); }
-        .name-input-wrap input {
-            flex: 1; border: none; outline: none;
-            background: transparent;
+            border-radius: 16px;
+            padding: 18px 12px;
+            cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
             font-family: 'DM Sans', sans-serif;
-            font-size: 1rem; color: var(--ink);
-            padding: 8px 0;
+            font-size: 0.95rem; font-weight: 600; color: var(--ink);
+            transition: all 0.2s;
         }
-        .name-input-wrap input::placeholder { color: var(--ink-muted); }
-        .btn-primary {
-            width: 100%;
-            background: var(--green); color: white;
-            border: none; border-radius: 12px;
-            padding: 13px; font-family: 'DM Sans', sans-serif;
-            font-size: 0.95rem; font-weight: 600;
-            cursor: pointer; transition: background 0.2s, transform 0.1s;
+        .user-option:hover { border-color: var(--green-mid); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+        .user-opt-avatar {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Fraunces', serif;
+            font-size: 1.4rem; font-weight: 900;
         }
-        .btn-primary:hover { background: #235c42; }
-        .btn-primary:active { transform: scale(0.98); }
 
         /* ── HEADER ── */
         header {
@@ -315,11 +310,17 @@
     <div class="name-card">
         <div class="name-card-emoji">🛒</div>
         <h3>¿Quién sos?</h3>
-        <p>Así los demás saben quién agregó cada cosa.</p>
-        <div class="name-input-wrap">
-            <input type="text" id="user-name-input" placeholder="Tu nombre..." autocomplete="off">
+        <p>Elegí tu perfil para continuar.</p>
+        <div class="user-options">
+            <button class="user-option" data-name="Martín" data-color="#1d4ed8" data-bg="#dbeafe">
+                <div class="user-opt-avatar" style="background:#dbeafe;color:#1d4ed8">M</div>
+                <span>Martín</span>
+            </button>
+            <button class="user-option" data-name="Flor" data-color="#be185d" data-bg="#fce7f3">
+                <div class="user-opt-avatar" style="background:#fce7f3;color:#be185d">F</div>
+                <span>Flor</span>
+            </button>
         </div>
-        <button class="btn-primary" id="save-name">Empezar</button>
     </div>
 </div>
 
@@ -385,27 +386,38 @@
     const pctEl     = document.getElementById('pct-display');
 
     // ── NAME ──
+    // Fixed users
+    const USERS = {
+        'Martín': { color: '#1d4ed8', bg: '#dbeafe' },
+        'Flor':   { color: '#be185d', bg: '#fce7f3' },
+    };
+
     if (!myName) {
         overlay.style.display = 'grid';
     } else {
         showMe();
     }
 
-    document.getElementById('save-name').onclick = () => {
-        const n = document.getElementById('user-name-input').value.trim();
-        if (n) {
+    document.querySelectorAll('.user-option').forEach(btn => {
+        btn.onclick = () => {
+            const n = btn.dataset.name;
             localStorage.setItem('super_user_v3', n);
             myName = n;
             overlay.style.display = 'none';
             showMe();
-        }
-    };
-    document.getElementById('user-name-input').onkeydown = e => {
-        if (e.key === 'Enter') document.getElementById('save-name').click();
-    };
+        };
+    });
 
     function showMe() {
-        meLabel.innerText = '👤 ' + myName;
+        const u = USERS[myName];
+        if (u) {
+            meLabel.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">
+                <span style="width:16px;height:16px;border-radius:50%;background:${u.bg};border:2px solid ${u.color};display:inline-block"></span>
+                ${myName}
+            </span>`;
+        } else {
+            meLabel.innerText = '👤 ' + myName;
+        }
     }
     meLabel.onclick = () => {
         localStorage.removeItem('super_user_v3');
@@ -443,9 +455,8 @@
                 const li = document.createElement('li');
                 if (item.done) li.classList.add('done');
                 const initials = (item.by || '?').trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-                const avatarColors = ['#d8f3dc|#2d6a4f','#fde8cc|#c07020','#e0e7ff|#4338ca','#fce7f3|#be185d','#f0fdf4|#16a34a','#fef9c3|#a16207'];
-                const aci = (item.by||'').charCodeAt(0) % avatarColors.length;
-                const [abg, afg] = avatarColors[aci].split('|');
+                const userDef = USERS[item.by] || { color: '#2d6a4f', bg: '#d8f3dc' };
+                const abg = userDef.bg, afg = userDef.color;
                 li.innerHTML = `
                     <div class="check-box" onclick="toggle('${id}', ${item.done})"></div>
                     <div class="item-info" onclick="toggle('${id}', ${item.done})">
