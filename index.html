@@ -714,7 +714,7 @@
             debugLog('Iniciando fetch a Gemini...');
             try {
                 const res = await fetch(
-                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + claudeApiKey,
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + claudeApiKey,
                     {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
