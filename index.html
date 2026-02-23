@@ -687,149 +687,19 @@
         document.getElementById('photo-panel').style.display = 'none';
     };
 
-    document.getElementById('photo-input').onchange = async (e) => {
+    document.getElementById('photo-input').onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        e.target.value = ''; // reset so same photo can be reselected
-
-        // Show overlay with preview
-        const overlay = document.getElementById('scan-overlay');
-        overlay.classList.add('visible');
-        setScanning(true, 'Analizando tu lista...');
-
-        // Preview image
         const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const b64 = ev.target.result.split(',')[1];
-            const mime = file.type || 'image/jpeg';
-
-            const preview = document.getElementById('scan-preview');
-            preview.src = ev.target.result;
-            preview.style.display = 'block';
-
-            debugLog('Iniciando fetch a Gemini...');
-            try {
-                const res = await fetch(
-                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + claudeApiKey,
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [
-                                    { inline_data: { mime_type: mime, data: b64 } },
-                                    { text: 'Esta es una lista de supermercado escrita a mano. Extraé todos los productos que veas. Respondé ÚNICAMENTE con un JSON array de strings, sin explicación ni markdown. Ejemplo: ["leche","pan","huevos"]. Si no ves productos, respondé [].' }
-                                ]
-                            }]
-                        })
-                    }
-                );
-
-                debugLog('Respuesta HTTP: ' + res.status);
-                if (!res.ok) {
-                    const errText = await res.text();
-                    debugLog('Error: ' + errText.substring(0, 200));
-                    setScanning(false, 'Error ' + res.status + ' — ver debug abajo');
-                    return;
-                }
-
-                const data = await res.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-                debugLog('Respuesta: ' + text.substring(0, 100));
-                const clean = text.replace(/```json|```/g, '').trim();
-
-                let parsed = [];
-                try {
-                    parsed = JSON.parse(clean);
-                } catch(parseErr) {
-                    parsed = clean.split('\n')
-                        .map(l => l.replace(/^[-*•\d.]+\s*/, '').trim())
-                        .filter(l => l.length > 1);
-                }
-
-                scannedItems = parsed;
-                if (scannedItems.length === 0) {
-                    setScanning(false, 'No encontré productos. Intentá con otra foto.');
-                } else {
-                    showScannedItems(scannedItems);
-                }
-            } catch(err) {
-                debugLog('CATCH: ' + err.name + ': ' + err.message);
-                setScanning(false, 'Error: ' + err.message);
-            }
+        reader.onload = (ev) => {
+            document.getElementById('photo-display').src = ev.target.result;
+            document.getElementById('photo-panel').style.display = 'block';
         };
         reader.readAsDataURL(file);
+        e.target.value = '';
     };
 
-    function setScanning(loading, msg) {
-        document.getElementById('scan-spinner').style.display = loading ? 'block' : 'none';
-        document.getElementById('scan-title').style.display = loading ? 'none' : 'block';
-        document.getElementById('scan-status').innerText = msg || '';
-        document.getElementById('scan-confirm').style.display = 'none';
-        document.getElementById('scan-items-preview').style.display = 'none';
-    }
-
-    function showScannedItems(items) {
-        document.getElementById('scan-spinner').style.display = 'none';
-        document.getElementById('scan-title').style.display = 'block';
-        document.getElementById('scan-title').innerText = `✅ ${items.length} producto${items.length !== 1 ? 's' : ''} encontrado${items.length !== 1 ? 's' : ''}`;
-        document.getElementById('scan-desc').innerText = 'Revisá la lista antes de agregarla.';
-        document.getElementById('scan-status').innerText = '';
-
-        const preview = document.getElementById('scan-items-preview');
-        preview.style.display = 'block';
-        preview.innerHTML = items.map(item =>
-            `<div class="scan-item-row"><span class="scan-item-check">✓</span><span>${escHtml(item)}</span></div>`
-        ).join('');
-
-        document.getElementById('scan-confirm').style.display = 'block';
-    }
-
-    document.getElementById('scan-confirm').onclick = () => {
-        scannedItems.forEach(item => {
-            if (item.trim()) {
-                dbRef.push({ name: item.trim(), done: false, by: myName || 'Anon', qty: 1 });
-            }
-        });
-        closeScanner();
-    };
-
-    document.getElementById('scan-cancel').onclick = closeScanner;
-    document.getElementById('scan-overlay').onclick = (e) => {
-        if (e.target === document.getElementById('scan-overlay')) closeScanner();
-    };
-
-    function showApiKeyModal() {
-        document.getElementById('apikey-overlay').style.display = 'grid';
-        document.getElementById('apikey-input').value = claudeApiKey;
-        setTimeout(() => document.getElementById('apikey-input').focus(), 100);
-    }
-
-    function saveApiKey() {
-        // Strip ALL whitespace including newlines, tabs, zero-width spaces
-        const key = document.getElementById('apikey-input').value.replace(/\s/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
-        if (!key.startsWith('AIza') && key.length < 20) {
-            document.getElementById('apikey-wrap').style.borderColor = '#c1121f';
-            document.getElementById('apikey-input').placeholder = 'Debe empezar con AIza...';
-            return;
-        }
-        claudeApiKey = key;
-        localStorage.setItem('claude_api_key', key);
-        document.getElementById('apikey-overlay').style.display = 'none';
-        document.getElementById('photo-input').click();
-    }
-
-    function closeScanner() {
-        const overlay = document.getElementById('scan-overlay');
-        overlay.classList.remove('visible');
-        scannedItems = [];
-        document.getElementById('scan-preview').style.display = 'none';
-        document.getElementById('scan-title').innerText = '📋 Escanear lista';
-        document.getElementById('scan-desc').innerText = 'Sacá una foto de tu lista manuscrita y la cargamos automáticamente.';
-        setScanning(false, '');
-    }
-
-    // PWA Service Worker
+        // PWA Service Worker
     if ('serviceWorker' in navigator) {
         const swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response('',{status:503}))));`;
         const blob = new Blob([swCode], {type:'application/javascript'});
