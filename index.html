@@ -331,6 +331,82 @@
             transition: all 0.2s;
         }
         .btn-clear:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+        /* ── SCAN BUTTON ── */
+        .scan-btn {
+            width: 38px; height: 38px;
+            border-radius: 11px;
+            border: 1.5px solid var(--border);
+            background: var(--bg);
+            color: var(--ink-muted);
+            font-size: 1.1rem;
+            cursor: pointer; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .scan-btn:hover { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
+        #photo-input { display: none; }
+
+        /* ── SCAN OVERLAY ── */
+        #scan-overlay {
+            position: fixed; inset: 0;
+            background: rgba(26,26,24,0.8);
+            backdrop-filter: blur(6px);
+            z-index: 200;
+            display: none;
+            place-items: center;
+            padding: 20px;
+        }
+        #scan-overlay.visible { display: grid; }
+        .scan-card {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 28px 22px;
+            width: 100%; max-width: 340px;
+            text-align: center;
+        }
+        .scan-card h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.3rem; font-weight: 900;
+            color: var(--ink); margin-bottom: 6px;
+        }
+        .scan-card p { font-size: 0.83rem; color: var(--ink-muted); margin-bottom: 20px; }
+        .scan-preview {
+            width: 100%; border-radius: 12px;
+            max-height: 200px; object-fit: cover;
+            margin-bottom: 16px; display: none;
+        }
+        .scan-spinner {
+            font-size: 1.8rem;
+            animation: spin 1s linear infinite;
+            display: none; margin-bottom: 12px;
+        }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .scan-status { font-size: 0.85rem; color: var(--ink-muted); margin-bottom: 16px; min-height: 20px; }
+        .scan-actions { display: flex; gap: 10px; }
+        .btn-secondary {
+            flex: 1;
+            background: var(--bg); border: 1.5px solid var(--border);
+            border-radius: 12px; padding: 11px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.88rem; font-weight: 600;
+            color: var(--ink-muted); cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover { border-color: var(--ink-muted); color: var(--ink); }
+        .scan-items-preview {
+            background: var(--bg); border-radius: 10px;
+            padding: 12px; margin-bottom: 16px;
+            text-align: left; display: none;
+            max-height: 180px; overflow-y: auto;
+        }
+        .scan-item-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 0; border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+        .scan-item-row:last-child { border-bottom: none; }
+        .scan-item-check { color: var(--green); font-weight: 700; }
     </style>
 </head>
 <body>
@@ -367,11 +443,13 @@
         </div>
     </header>
 
-    <div class="input-bar">
-        <div class="input-card">
+    <div class="input-bar" style="display:flex;gap:8px;align-items:center">
+        <div class="input-card" style="flex:1">
             <input type="text" id="item-in" placeholder="Agregar producto..." autocomplete="off">
             <button class="add-btn" id="add-btn">+</button>
         </div>
+        <button class="scan-btn" id="scan-btn" title="Escanear lista manuscrita">📷</button>
+        <input type="file" id="photo-input" accept="image/*" capture="environment">
     </div>
 
     <div class="filter-bar" id="filter-bar">
@@ -387,6 +465,22 @@
             <strong id="pct-display">0%</strong> completado
         </div>
         <button class="btn-clear" id="clear">Limpiar comprados</button>
+    </div>
+</div>
+
+<!-- Scan overlay -->
+<div id="scan-overlay">
+    <div class="scan-card">
+        <div class="scan-spinner" id="scan-spinner">⏳</div>
+        <h3 id="scan-title">📋 Escanear lista</h3>
+        <p id="scan-desc">Sacá una foto de tu lista manuscrita y la cargamos automáticamente.</p>
+        <img class="scan-preview" id="scan-preview" alt="Vista previa">
+        <div class="scan-status" id="scan-status"></div>
+        <div class="scan-items-preview" id="scan-items-preview"></div>
+        <div class="scan-actions">
+            <button class="btn-secondary" id="scan-cancel">Cancelar</button>
+            <button class="btn-primary" id="scan-confirm" style="flex:1;display:none">✓ Agregar todos</button>
+        </div>
     </div>
 </div>
 
@@ -552,6 +646,123 @@
         filter = btn.dataset.f;
         renderList();
     });
+
+    // ── SCAN LOGIC ──
+    const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+    let scannedItems = [];
+
+    document.getElementById('scan-btn').onclick = () => {
+        document.getElementById('photo-input').click();
+    };
+
+    document.getElementById('photo-input').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        e.target.value = ''; // reset so same photo can be reselected
+
+        // Show overlay with preview
+        const overlay = document.getElementById('scan-overlay');
+        overlay.classList.add('visible');
+        setScanning(true, 'Analizando tu lista...');
+
+        // Preview image
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const b64 = ev.target.result.split(',')[1];
+            const mime = file.type || 'image/jpeg';
+
+            const preview = document.getElementById('scan-preview');
+            preview.src = ev.target.result;
+            preview.style.display = 'block';
+
+            try {
+                const res = await fetch(CLAUDE_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-20250514',
+                        max_tokens: 1000,
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'image',
+                                    source: { type: 'base64', media_type: mime, data: b64 }
+                                },
+                                {
+                                    type: 'text',
+                                    text: 'Esta es una lista de supermercado escrita a mano. Extraé todos los productos que veas. Respondé ÚNICAMENTE con un JSON array de strings, sin explicación ni markdown. Ejemplo: ["leche","pan","huevos"]. Si no ves productos, respondé [].'
+                                }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await res.json();
+                const text = data.content?.[0]?.text || '[]';
+                const clean = text.replace(/```[a-z]*|```/g, '').trim();
+                scannedItems = JSON.parse(clean);
+
+                if (scannedItems.length === 0) {
+                    setScanning(false, 'No encontré productos en la imagen. Intentá con otra foto.');
+                } else {
+                    showScannedItems(scannedItems);
+                }
+            } catch(err) {
+                setScanning(false, 'Error al procesar la imagen. Verificá tu conexión.');
+                console.error(err);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    function setScanning(loading, msg) {
+        document.getElementById('scan-spinner').style.display = loading ? 'block' : 'none';
+        document.getElementById('scan-title').style.display = loading ? 'none' : 'block';
+        document.getElementById('scan-status').innerText = msg || '';
+        document.getElementById('scan-confirm').style.display = 'none';
+        document.getElementById('scan-items-preview').style.display = 'none';
+    }
+
+    function showScannedItems(items) {
+        document.getElementById('scan-spinner').style.display = 'none';
+        document.getElementById('scan-title').style.display = 'block';
+        document.getElementById('scan-title').innerText = `✅ ${items.length} producto${items.length !== 1 ? 's' : ''} encontrado${items.length !== 1 ? 's' : ''}`;
+        document.getElementById('scan-desc').innerText = 'Revisá la lista antes de agregarla.';
+        document.getElementById('scan-status').innerText = '';
+
+        const preview = document.getElementById('scan-items-preview');
+        preview.style.display = 'block';
+        preview.innerHTML = items.map(item =>
+            `<div class="scan-item-row"><span class="scan-item-check">✓</span><span>${escHtml(item)}</span></div>`
+        ).join('');
+
+        document.getElementById('scan-confirm').style.display = 'block';
+    }
+
+    document.getElementById('scan-confirm').onclick = () => {
+        scannedItems.forEach(item => {
+            if (item.trim()) {
+                dbRef.push({ name: item.trim(), done: false, by: myName || 'Anon', qty: 1 });
+            }
+        });
+        closeScanner();
+    };
+
+    document.getElementById('scan-cancel').onclick = closeScanner;
+    document.getElementById('scan-overlay').onclick = (e) => {
+        if (e.target === document.getElementById('scan-overlay')) closeScanner();
+    };
+
+    function closeScanner() {
+        const overlay = document.getElementById('scan-overlay');
+        overlay.classList.remove('visible');
+        scannedItems = [];
+        document.getElementById('scan-preview').style.display = 'none';
+        document.getElementById('scan-title').innerText = '📋 Escanear lista';
+        document.getElementById('scan-desc').innerText = 'Sacá una foto de tu lista manuscrita y la cargamos automáticamente.';
+        setScanning(false, '');
+    }
 
     // PWA Service Worker
     if ('serviceWorker' in navigator) {
