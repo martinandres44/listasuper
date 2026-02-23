@@ -449,8 +449,13 @@
             <input type="text" id="item-in" placeholder="Agregar producto..." autocomplete="off">
             <button class="add-btn" id="add-btn">+</button>
         </div>
-        <button class="scan-btn" id="scan-btn" title="Escanear lista manuscrita">📷</button>
-        <input type="file" id="photo-input" accept="image/*" capture="environment">
+        <button class="scan-btn" id="scan-btn" title="Ver foto de lista">📷</button>
+        <input type="file" id="photo-input" accept="image/*">
+    </div>
+
+    <div id="photo-panel" style="display:none; position:relative;">
+        <img id="photo-display" style="width:100%; max-height:220px; object-fit:cover; display:block; cursor:pointer;" alt="Lista de referencia">
+        <button id="photo-close" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.5);color:white;border:none;border-radius:50%;width:28px;height:28px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
     </div>
 
     <div class="filter-bar" id="filter-bar">
@@ -491,22 +496,7 @@
     </div>
 </div>
 
-<!-- Scan overlay -->
-<div id="scan-overlay">
-    <div class="scan-card">
-        <div class="scan-spinner" id="scan-spinner">⏳</div>
-        <h3 id="scan-title">📋 Escanear lista</h3>
-        <p id="scan-desc">Sacá una foto de tu lista manuscrita y la cargamos automáticamente.</p>
-        <img class="scan-preview" id="scan-preview" alt="Vista previa">
-        <div class="scan-status" id="scan-status"></div>
-        <pre id="debug-panel" style="display:none;background:#1a1a18;color:#74c69d;font-size:0.65rem;padding:10px;border-radius:8px;text-align:left;overflow:auto;max-height:120px;margin-bottom:10px;white-space:pre-wrap;word-break:break-all"></pre>
-        <div class="scan-items-preview" id="scan-items-preview"></div>
-        <div class="scan-actions">
-            <button class="btn-secondary" id="scan-cancel">Cancelar</button>
-            <button class="btn-primary" id="scan-confirm" style="flex:1;display:none">✓ Agregar todos</button>
-        </div>
-    </div>
-</div>
+
 
 <script>
     const firebaseConfig = {
@@ -683,12 +673,18 @@
         }
     }
 
-    // ── SCAN LOGIC ──
-    const claudeApiKey = 'AIzaSyAsU8ihOIckifGFPGUW9tHuWkNeJdQpAtY';
-    let scannedItems = [];
-
+    // ── PHOTO REFERENCE ──
     document.getElementById('scan-btn').onclick = () => {
-        document.getElementById('photo-input').click();
+        const panel = document.getElementById('photo-panel');
+        if (panel.style.display !== 'none') {
+            panel.style.display = 'none';
+        } else {
+            document.getElementById('photo-input').click();
+        }
+    };
+
+    document.getElementById('photo-close').onclick = () => {
+        document.getElementById('photo-panel').style.display = 'none';
     };
 
     document.getElementById('photo-input').onchange = async (e) => {
