@@ -698,10 +698,30 @@
                     })
                 });
 
+                if (!res.ok) {
+                    const errText = await res.text();
+                    console.error('API error:', res.status, errText);
+                    setScanning(false, `Error ${res.status}: ${errText.substring(0,100)}`);
+                    return;
+                }
+
                 const data = await res.json();
+                console.log('API response:', JSON.stringify(data).substring(0, 300));
+
                 const text = data.content?.[0]?.text || '[]';
-                const clean = text.replace(/```[a-z]*|```/g, '').trim();
-                scannedItems = JSON.parse(clean);
+                const clean = text.replace(/```json|```/g, '').trim();
+
+                let parsed = [];
+                try {
+                    parsed = JSON.parse(clean);
+                } catch(parseErr) {
+                    // Si no es JSON válido, intentar extraer líneas
+                    parsed = clean.split('\n')
+                        .map(l => l.replace(/^[-*•\d.]+\s*/, '').trim())
+                        .filter(l => l.length > 1);
+                }
+
+                scannedItems = parsed;
 
                 if (scannedItems.length === 0) {
                     setScanning(false, 'No encontré productos en la imagen. Intentá con otra foto.');
@@ -709,8 +729,8 @@
                     showScannedItems(scannedItems);
                 }
             } catch(err) {
-                setScanning(false, 'Error al procesar la imagen. Verificá tu conexión.');
-                console.error(err);
+                console.error('Fetch error:', err);
+                setScanning(false, 'Error: ' + err.message);
             }
         };
         reader.readAsDataURL(file);
