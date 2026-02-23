@@ -685,7 +685,7 @@
 
     // ── SCAN LOGIC ──
     const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
-    let claudeApiKey = localStorage.getItem('claude_api_key') || '';
+    let claudeApiKey = (localStorage.getItem('claude_api_key') || '').replace(/\s/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
     let scannedItems = [];
 
     document.getElementById('scan-btn').onclick = () => {
@@ -716,6 +716,7 @@
                 showApiKeyModal();
                 return;
             }
+            debugLog('Key: ...' + claudeApiKey.slice(-6) + ' (len:' + claudeApiKey.length + ')');
             debugLog('Iniciando fetch a API...');
             try {
                 const res = await fetch(CLAUDE_API, {
@@ -824,15 +825,16 @@
     }
 
     function saveApiKey() {
-        const key = document.getElementById('apikey-input').value.trim();
+        // Strip ALL whitespace including newlines, tabs, zero-width spaces
+        const key = document.getElementById('apikey-input').value.replace(/\s/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
         if (!key.startsWith('sk-ant-')) {
             document.getElementById('apikey-wrap').style.borderColor = '#c1121f';
+            document.getElementById('apikey-input').placeholder = 'Debe empezar con sk-ant-...';
             return;
         }
         claudeApiKey = key;
         localStorage.setItem('claude_api_key', key);
         document.getElementById('apikey-overlay').style.display = 'none';
-        // retry scan
         document.getElementById('photo-input').click();
     }
 
