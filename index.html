@@ -476,6 +476,7 @@
         <p id="scan-desc">Sacá una foto de tu lista manuscrita y la cargamos automáticamente.</p>
         <img class="scan-preview" id="scan-preview" alt="Vista previa">
         <div class="scan-status" id="scan-status"></div>
+        <pre id="debug-panel" style="display:none;background:#1a1a18;color:#74c69d;font-size:0.65rem;padding:10px;border-radius:8px;text-align:left;overflow:auto;max-height:120px;margin-bottom:10px;white-space:pre-wrap;word-break:break-all"></pre>
         <div class="scan-items-preview" id="scan-items-preview"></div>
         <div class="scan-actions">
             <button class="btn-secondary" id="scan-cancel">Cancelar</button>
@@ -647,6 +648,18 @@
         renderList();
     });
 
+    // ── DEBUG PANEL ──
+    let debugLines = [];
+    function debugLog(msg) {
+        console.log(msg);
+        debugLines.push(new Date().toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' ' + msg);
+        const panel = document.getElementById('debug-panel');
+        if (panel) {
+            panel.style.display = 'block';
+            panel.innerText = debugLines.slice(-8).join('\n');
+        }
+    }
+
     // ── SCAN LOGIC ──
     const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
     let scannedItems = [];
@@ -675,6 +688,7 @@
             preview.src = ev.target.result;
             preview.style.display = 'block';
 
+            debugLog('Iniciando fetch a API...');
             try {
                 const res = await fetch(CLAUDE_API, {
                     method: 'POST',
@@ -698,15 +712,16 @@
                     })
                 });
 
+                debugLog('Respuesta HTTP: ' + res.status);
                 if (!res.ok) {
                     const errText = await res.text();
-                    console.error('API error:', res.status, errText);
-                    setScanning(false, `Error ${res.status}: ${errText.substring(0,100)}`);
+                    debugLog('Error body: ' + errText.substring(0, 200));
+                    setScanning(false, `Error ${res.status} — ver debug abajo`);
                     return;
                 }
 
                 const data = await res.json();
-                console.log('API response:', JSON.stringify(data).substring(0, 300));
+                debugLog('Respuesta OK: ' + JSON.stringify(data).substring(0, 150));
 
                 const text = data.content?.[0]?.text || '[]';
                 const clean = text.replace(/```json|```/g, '').trim();
@@ -729,8 +744,8 @@
                     showScannedItems(scannedItems);
                 }
             } catch(err) {
-                console.error('Fetch error:', err);
-                setScanning(false, 'Error: ' + err.message);
+                debugLog('CATCH: ' + err.name + ': ' + err.message);
+                setScanning(false, 'Error: ' + err.message + ' — ver debug abajo');
             }
         };
         reader.readAsDataURL(file);
