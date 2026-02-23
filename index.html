@@ -474,10 +474,10 @@
     <div style="background:white;border-radius:24px;padding:28px 22px;width:100%;max-width:340px;text-align:center">
         <div style="font-size:2rem;margin-bottom:10px">🔑</div>
         <h3 style="font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;color:#1a1a18;margin-bottom:8px">API Key de Claude</h3>
-        <p style="font-size:0.82rem;color:#7a7770;margin-bottom:6px">Necesitás una API key de Anthropic para escanear listas.</p>
-        <p style="font-size:0.78rem;color:#7a7770;margin-bottom:18px">Creala en <b>console.anthropic.com</b> → API Keys → Create Key.<br>Se guarda solo en tu teléfono.</p>
+        <p style="font-size:0.82rem;color:#7a7770;margin-bottom:6px">Necesitás una API key de Gemini (gratis) para escanear listas.</p>
+        <p style="font-size:0.78rem;color:#7a7770;margin-bottom:18px">Creala gratis en <b>aistudio.google.com/apikey</b><br>Se guarda solo en tu teléfono.</p>
         <div style="background:#faf7f2;border:2px solid #e8e3da;border-radius:12px;padding:4px 4px 4px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;transition:border-color 0.2s" id="apikey-wrap">
-            <input type="password" id="apikey-input" placeholder="sk-ant-api03-..." autocomplete="off"
+            <input type="password" id="apikey-input" placeholder="AIza..." autocomplete="off"
                 style="flex:1;border:none;outline:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:#1a1a18;padding:8px 0">
             <button onclick="document.getElementById('apikey-input').type = document.getElementById('apikey-input').type==='password'?'text':'password'"
                 style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px 8px;color:#7a7770">👁</button>
@@ -684,8 +684,7 @@
     }
 
     // ── SCAN LOGIC ──
-    const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
-    let claudeApiKey = (localStorage.getItem('claude_api_key') || '').replace(/\s/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const claudeApiKey = 'AIzaSyAsU8ihOIckifGFPGUW9tHuWkNeJdQpAtY';
     let scannedItems = [];
 
     document.getElementById('scan-btn').onclick = () => {
@@ -712,69 +711,55 @@
             preview.src = ev.target.result;
             preview.style.display = 'block';
 
-            if (!claudeApiKey) {
-                showApiKeyModal();
-                return;
-            }
-            debugLog('Key: ...' + claudeApiKey.slice(-6) + ' (len:' + claudeApiKey.length + ')');
-            debugLog('Iniciando fetch a API...');
+            debugLog('Iniciando fetch a Gemini...');
             try {
-                const res = await fetch(CLAUDE_API, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-                    body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: 1000,
-                        messages: [{
-                            role: 'user',
-                            content: [
-                                {
-                                    type: 'image',
-                                    source: { type: 'base64', media_type: mime, data: b64 }
-                                },
-                                {
-                                    type: 'text',
-                                    text: 'Esta es una lista de supermercado escrita a mano. Extraé todos los productos que veas. Respondé ÚNICAMENTE con un JSON array de strings, sin explicación ni markdown. Ejemplo: ["leche","pan","huevos"]. Si no ves productos, respondé [].'
-                                }
-                            ]
-                        }]
-                    })
-                });
+                const res = await fetch(
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + claudeApiKey,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [
+                                    { inline_data: { mime_type: mime, data: b64 } },
+                                    { text: 'Esta es una lista de supermercado escrita a mano. Extraé todos los productos que veas. Respondé ÚNICAMENTE con un JSON array de strings, sin explicación ni markdown. Ejemplo: ["leche","pan","huevos"]. Si no ves productos, respondé [].' }
+                                ]
+                            }]
+                        })
+                    }
+                );
 
                 debugLog('Respuesta HTTP: ' + res.status);
                 if (!res.ok) {
                     const errText = await res.text();
-                    debugLog('Error body: ' + errText.substring(0, 200));
-                    setScanning(false, `Error ${res.status} — ver debug abajo`);
+                    debugLog('Error: ' + errText.substring(0, 200));
+                    setScanning(false, 'Error ' + res.status + ' — ver debug abajo');
                     return;
                 }
 
                 const data = await res.json();
-                debugLog('Respuesta OK: ' + JSON.stringify(data).substring(0, 150));
-
-                const text = data.content?.[0]?.text || '[]';
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+                debugLog('Respuesta: ' + text.substring(0, 100));
                 const clean = text.replace(/```json|```/g, '').trim();
 
                 let parsed = [];
                 try {
                     parsed = JSON.parse(clean);
                 } catch(parseErr) {
-                    // Si no es JSON válido, intentar extraer líneas
                     parsed = clean.split('\n')
                         .map(l => l.replace(/^[-*•\d.]+\s*/, '').trim())
                         .filter(l => l.length > 1);
                 }
 
                 scannedItems = parsed;
-
                 if (scannedItems.length === 0) {
-                    setScanning(false, 'No encontré productos en la imagen. Intentá con otra foto.');
+                    setScanning(false, 'No encontré productos. Intentá con otra foto.');
                 } else {
                     showScannedItems(scannedItems);
                 }
             } catch(err) {
                 debugLog('CATCH: ' + err.name + ': ' + err.message);
-                setScanning(false, 'Error: ' + err.message + ' — ver debug abajo');
+                setScanning(false, 'Error: ' + err.message);
             }
         };
         reader.readAsDataURL(file);
@@ -827,9 +812,9 @@
     function saveApiKey() {
         // Strip ALL whitespace including newlines, tabs, zero-width spaces
         const key = document.getElementById('apikey-input').value.replace(/\s/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
-        if (!key.startsWith('sk-ant-')) {
+        if (!key.startsWith('AIza') && key.length < 20) {
             document.getElementById('apikey-wrap').style.borderColor = '#c1121f';
-            document.getElementById('apikey-input').placeholder = 'Debe empezar con sk-ant-...';
+            document.getElementById('apikey-input').placeholder = 'Debe empezar con AIza...';
             return;
         }
         claudeApiKey = key;
