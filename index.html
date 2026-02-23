@@ -440,6 +440,7 @@
             <span id="count-display">0 productos</span>
             <span>·</span>
             <span id="me-label">cargando...</span>
+            <span onclick="showApiKeyModal()" style="cursor:pointer;font-size:0.9rem;opacity:0.5" title="Configurar API Key">⚙️</span>
         </div>
     </header>
 
@@ -465,6 +466,28 @@
             <strong id="pct-display">0%</strong> completado
         </div>
         <button class="btn-clear" id="clear">Limpiar comprados</button>
+    </div>
+</div>
+
+<!-- API Key modal -->
+<div id="apikey-overlay" style="position:fixed;inset:0;background:rgba(26,26,24,0.85);backdrop-filter:blur(6px);z-index:300;display:none;place-items:center;padding:20px">
+    <div style="background:white;border-radius:24px;padding:28px 22px;width:100%;max-width:340px;text-align:center">
+        <div style="font-size:2rem;margin-bottom:10px">🔑</div>
+        <h3 style="font-family:'Fraunces',serif;font-size:1.3rem;font-weight:900;color:#1a1a18;margin-bottom:8px">API Key de Claude</h3>
+        <p style="font-size:0.82rem;color:#7a7770;margin-bottom:6px">Necesitás una API key de Anthropic para escanear listas.</p>
+        <p style="font-size:0.78rem;color:#7a7770;margin-bottom:18px">Creala en <b>console.anthropic.com</b> → API Keys → Create Key.<br>Se guarda solo en tu teléfono.</p>
+        <div style="background:#faf7f2;border:2px solid #e8e3da;border-radius:12px;padding:4px 4px 4px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;transition:border-color 0.2s" id="apikey-wrap">
+            <input type="password" id="apikey-input" placeholder="sk-ant-api03-..." autocomplete="off"
+                style="flex:1;border:none;outline:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:#1a1a18;padding:8px 0">
+            <button onclick="document.getElementById('apikey-input').type = document.getElementById('apikey-input').type==='password'?'text':'password'"
+                style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px 8px;color:#7a7770">👁</button>
+        </div>
+        <div style="display:flex;gap:10px">
+            <button onclick="document.getElementById('apikey-overlay').style.display='none'"
+                style="flex:1;background:#faf7f2;border:1.5px solid #e8e3da;border-radius:12px;padding:11px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;color:#7a7770;cursor:pointer">Cancelar</button>
+            <button onclick="saveApiKey()"
+                style="flex:1;background:#2d6a4f;color:white;border:none;border-radius:12px;padding:11px;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer">Guardar</button>
+        </div>
     </div>
 </div>
 
@@ -662,6 +685,7 @@
 
     // ── SCAN LOGIC ──
     const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+    let claudeApiKey = localStorage.getItem('claude_api_key') || '';
     let scannedItems = [];
 
     document.getElementById('scan-btn').onclick = () => {
@@ -688,6 +712,10 @@
             preview.src = ev.target.result;
             preview.style.display = 'block';
 
+            if (!claudeApiKey) {
+                showApiKeyModal();
+                return;
+            }
             debugLog('Iniciando fetch a API...');
             try {
                 const res = await fetch(CLAUDE_API, {
@@ -788,6 +816,25 @@
     document.getElementById('scan-overlay').onclick = (e) => {
         if (e.target === document.getElementById('scan-overlay')) closeScanner();
     };
+
+    function showApiKeyModal() {
+        document.getElementById('apikey-overlay').style.display = 'grid';
+        document.getElementById('apikey-input').value = claudeApiKey;
+        setTimeout(() => document.getElementById('apikey-input').focus(), 100);
+    }
+
+    function saveApiKey() {
+        const key = document.getElementById('apikey-input').value.trim();
+        if (!key.startsWith('sk-ant-')) {
+            document.getElementById('apikey-wrap').style.borderColor = '#c1121f';
+            return;
+        }
+        claudeApiKey = key;
+        localStorage.setItem('claude_api_key', key);
+        document.getElementById('apikey-overlay').style.display = 'none';
+        // retry scan
+        document.getElementById('photo-input').click();
+    }
 
     function closeScanner() {
         const overlay = document.getElementById('scan-overlay');
